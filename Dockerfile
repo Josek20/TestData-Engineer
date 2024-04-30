@@ -11,4 +11,4 @@ COPY . .
 # Download the Google Drive file
 # RUN wget -O data/GoogleNews-vectors-negative300.bin.gz 'https://drive.google.com/uc?id=0B7XkCwpI5KDYNlNUTTlSS21pQmM'
 
-CMD ["python", "app.py"]
+CMD ["python", "src/app.py"]
