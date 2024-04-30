@@ -2,4 +2,3 @@ __pycache__
 .venv/
 test[0-9]*.py
 .idea/
-data/
