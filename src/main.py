@@ -1,17 +1,12 @@
-import dataclasses
-from dataclasses import dataclass
-from time import time
-import multiprocessing
-
-import gensim
 import numpy as np
 from gensim.models import KeyedVectors
 import csv
 import os
 import pandas as pd
 from numpy.linalg import norm
-import timeit
 import Levenshtein
+
+from utils import log_execution_time, handle_exceptions
 
 
 def find_closest_key(target_string, dictionary):
@@ -48,18 +43,19 @@ class PhraseManager:
             word_index_list.append(word_index)
         return word_index_list
 
-    def calculate_phrases_embeddings(self):
-        if os.path.isfile('data/phrases_embeddings.npy'):
-            self.all_phrases_embeddings = np.load('data/phrases_embeddings.npy')
+    def calculate_phrases_embeddings(self, phrases_embedding_path: str = 'data/phrases_embeddings.npy'):
+        if os.path.isfile(phrases_embedding_path):
+            self.all_phrases_embeddings = np.load(phrases_embedding_path)
         else:
             self.all_phrases_embeddings = np.zeros((len(self.all_phrases), self.embedding_size))
             for phrase, phrase_index in self.all_phrases_to_index.items():
                 phrase_words_indexs = self.all_phrases_index_list[phrase_index]
                 phrase_embedding = sum(self.all_words_embeddings[phrase_words_indexs])
                 self.all_phrases_embeddings[phrase_index, :] = phrase_embedding
-            np.save('data/phrases_embeddings.npy', self.all_phrases_embeddings)
+            np.save(phrases_embedding_path, self.all_phrases_embeddings)
 
-    def calculate_distances(self):
+    def calculate_distances(self, l2_distances_path: str = 'data/all_l2_distances.npy',
+                            cosine_distances_path: str = 'data/all_cosine_distances.npy'):
         n = len(self.all_phrases)
         self.all_l2_distances = np.zeros((n, n))
         self.all_cosine_distances = np.zeros((n, n))
@@ -71,8 +67,8 @@ class PhraseManager:
                 self.all_l2_distances[index1, index2] = l2_distance
                 cosine_distance = self.calculate_cos_distance(phrase1_embedding, phrase2_embedding)
                 self.all_cosine_distances[index1, index2] = cosine_distance
-        np.save('data/all_l2_distances.npy', self.all_l2_distances)
-        np.save('data/all_cosine_distances.npy', self.all_cosine_distances)
+        np.save(l2_distances_path, self.all_l2_distances)
+        np.save(cosine_distances_path, self.all_cosine_distances)
 
     def calculate_l2(self, phrase1_embedding: np.array, phrase2_embedding: np.array):
         l2 = np.sqrt(np.sum((phrase1_embedding - phrase2_embedding) ** 2))
@@ -83,20 +79,22 @@ class PhraseManager:
         return cosine
 
 
+@handle_exceptions
+@log_execution_time
 def input_data(file_path: str, phrase_manager: PhraseManager):
     with open(file_path, 'r', encoding='ISO-8859-1') as fp:
-        reader = csv.reader(fp, delimiter=' ')
+        reader = csv.reader(fp, delimiter='\n')
         _ = next(reader)
         for phrase in reader:
-            if phrase not in phrase_manager.all_phrases:
-                phrase_manager.all_phrases.append(phrase)
-                phrase_manager.all_phrases_to_index[' '.join(phrase)] = len(phrase_manager.all_phrases) - 1
-                word_indexs = phrase_manager.phrase_processor(phrase)
+            if phrase[0] not in phrase_manager.all_phrases:
+                phrase_manager.all_phrases.append(phrase[0])
+                phrase_manager.all_phrases_to_index[phrase[0]] = len(phrase_manager.all_phrases) - 1
+                word_indexs = phrase_manager.phrase_processor(phrase[0].split(' '))
                 phrase_manager.all_phrases_index_list.append(word_indexs)
     return phrase_manager
 
 
-def data_pipeline(word_embeddings, word_to_index, phrase_data_path: str = 'data/phrases.csv'):
+def data_pipeline(word_embeddings, word_to_index, phrase_data_path: str = '../data/phrases.csv'):
     phrase_manager = PhraseManager()
     phrase_manager.all_words_embeddings = word_embeddings
     phrase_manager.word_to_emb_index = word_to_index
@@ -106,6 +104,8 @@ def data_pipeline(word_embeddings, word_to_index, phrase_data_path: str = 'data/
     return phrase_manager
 
 
+@handle_exceptions
+@log_execution_time
 def pipeline_for_new_input(phrase: str, phrase_manager: PhraseManager):
     word_index_list = phrase_manager.phrase_processor(phrase.split(' '))
     phrase_embedding = sum(phrase_manager.all_words_embeddings[word_index_list])
@@ -125,6 +125,8 @@ def pipeline_for_new_input(phrase: str, phrase_manager: PhraseManager):
     return best_phrase, best_l2_distance, best_cos_distance
 
 
+@handle_exceptions
+@log_execution_time
 def load_existing_embeddings(file_path: str = 'data/GoogleNews-vectors-negative300.bin.gz',
                              save_to_embeddings: str = 'data/vector.npy',save_to_index: str = 'data/word_to_index.csv', limit: int = 1_000_000):
     wv = KeyedVectors.load_word2vec_format(file_path, binary=True, limit=limit)
@@ -137,4 +139,14 @@ def load_existing_embeddings(file_path: str = 'data/GoogleNews-vectors-negative3
 
 
 if __name__ == '__main__':
-    pass
+    existing_embeddings_file = 'data/vector.npy'
+    existing_index_file = 'data/word_to_index.csv'
+    if not os.path.isfile(existing_embeddings_file):
+        words_embeddings, word_to_index = load_existing_embeddings(save_to_embeddings=existing_embeddings_file)
+    else:
+        words_embeddings = np.load(existing_embeddings_file)
+        word_to_index_df = pd.read_csv(existing_index_file)
+        word_to_index_df['word'] = word_to_index_df['word'].apply(lambda x: 'None' if pd.isna(x) else x)
+        word_to_index = word_to_index_df.set_index('word').to_dict()['index']
+
+    phrase_manager = data_pipeline(words_embeddings, word_to_index, phrase_data_path='data/phrases.csv')
