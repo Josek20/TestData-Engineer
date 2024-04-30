@@ -2,9 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phrase Input</title>
 </head>
 <body>
-
+    <h2>Enter Your Phrase</h2>
+    <form action="/" method="post">
+        <label for="phrase">Phrase:</label><br>
+        <input type="text" id="phrase" name="phrase"><br><br>
+        <input type="submit" value="Submit">
+    </form>
+    {% if response %}
+    <div>Closest Phrase: {{ response[0] }}</div>
+    <div>L2 distance: {{ response[1] }}</div>
+    <div>Cosine distance: {{ response[2] }}</div> <!-- corrected index -->
+    {% endif %}
 </body>
 </html>
