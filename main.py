@@ -48,8 +48,6 @@ class PhraseManager:
             word_index_list.append(word_index)
         return word_index_list
 
-    # def get_phrase_embedding(self):
-
     def calculate_phrases_embeddings(self):
         if os.path.isfile('data/phrases_embeddings.npy'):
             self.all_phrases_embeddings = np.load('data/phrases_embeddings.npy')
@@ -85,7 +83,7 @@ class PhraseManager:
         return cosine
 
 
-def input_data2(file_path: str, phrase_manager: PhraseManager):
+def input_data(file_path: str, phrase_manager: PhraseManager):
     with open(file_path, 'r', encoding='ISO-8859-1') as fp:
         reader = csv.reader(fp, delimiter=' ')
         _ = next(reader)
@@ -102,16 +100,9 @@ def data_pipeline(word_embeddings, word_to_index, phrase_data_path: str = 'data/
     phrase_manager = PhraseManager()
     phrase_manager.all_words_embeddings = word_embeddings
     phrase_manager.word_to_emb_index = word_to_index
-    s = time()
-    phrase_manager = input_data2(phrase_data_path, phrase_manager)
-    print(f"read_input = {time() - s}")
-    s = time()
+    phrase_manager = input_data(phrase_data_path, phrase_manager)
     phrase_manager.calculate_phrases_embeddings()
-    print(f"embeddings = {time() - s}")
-    print(phrase_manager.all_phrases_embeddings)
-    s = time()
     phrase_manager.calculate_distances()
-    print(f"distance = {time() - s}")
     return phrase_manager
 
 
